@@ -60,6 +60,15 @@ for Copilot agent mode; anywhere else, point your agent at `.senior/commands/`).
 `senior sync` re-renders agent command files after updating this tool; `.senior/`
 itself (principles, dossier, decisions, backlog, work artifacts) stays yours.
 
+After init the agent also **knows the workflow ambiently**: `init`/`sync` write a
+managed section into the agent's project-context file — `CLAUDE.md` (Claude Code),
+`AGENTS.md` (Codex), `.github/copilot-instructions.md` (Copilot),
+`.cursor/rules/seniordev.mdc` (Cursor). Those files stay human-owned: seniordev only
+replaces its own marked block, your content is never touched. So after init you can
+just talk to your agent — it starts with recon, uses the decide-and-document rule,
+and refuses to fake verification without being handed a command. To refresh the
+block after changing principles or upgrading the tool: `senior sync`.
+
 ## How it works
 
 - **Templates as behavior prompts**: every command is an agent-agnostic markdown file

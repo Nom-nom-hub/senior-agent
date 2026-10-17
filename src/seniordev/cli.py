@@ -27,6 +27,9 @@ TEMPLATES_DIR = DATA / "templates"
 
 REPO_INTEGRATION = "generic"  # always rendered so any agent can read .senior/commands
 
+SECTION_BEGIN = "<!-- seniordev:begin v1 -->"
+SECTION_END = "<!-- seniordev:end -->"
+
 
 def eprint(message: str) -> None:
     print(message, file=sys.stderr)
@@ -47,7 +50,6 @@ def parse_agents(spec: str) -> list[str]:
 
 
 def render_commands(project_root: Path, keys: list[str]) -> list[Path]:
-    """Render command templates into every requested agent's directory."""
     rendered: list[Path] = []
     for key in keys:
         integration = integ.INTEGRATIONS[key]
@@ -65,7 +67,6 @@ def render_commands(project_root: Path, keys: list[str]) -> list[Path]:
 
 
 def write_workspace_scaffold(project_root: Path) -> list[Path]:
-    """Create .senior/ workspace files from templates if missing."""
     root = project_root / ".senior"
     root.mkdir(parents=True, exist_ok=True)
     made: list[Path] = []
@@ -123,6 +124,104 @@ def project_arg(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     return parser
 
 
+def write_managed_instructions(project_root: Path, keys: list[str]) -> dict[str, str]:
+    """Write the managed seniordev workflow section into each agent's ambient
+    instructions file (CLAUDE.md, AGENTS.md, Copilot instructions, Cursor rules).
+
+    Merge policy: the file stays human-owned; seniordev replaces only the text
+    between its BEGIN/END markers. Human content above/below is untouched; no file
+    is created empty — if creating fresh, a small header is added above the section.
+    Idempotent: re-running replaces the same block (config stripping versions).
+    """
+    body = (TEMPLATES_DIR / "agent-instructions.md").read_text(encoding="utf-8")
+    section = f"{SECTION_BEGIN}\n\n{body}"
+    results: dict[str, str] = {}
+    for key in keys:
+        integration = integ.INTEGRATIONS[key]
+        if not integration.instructions_file:
+            continue
+        if key == "generic" and "generic" not in _explicit_agents(project_root):
+            continue
+        target = project_root / integration.instructions_file
+        existing = ""
+        if target.is_file():
+            existing = target.read_text(encoding="utf-8", errors="replace")
+        if SECTION_BEGIN in existing and SECTION_END in existing:
+            pre, rest = existing.split(SECTION_BEGIN, 1)
+            _, post = rest.split(SECTION_END, 1)
+            merged = pre + section + SECTION_END + post
+            action = "replaced section"
+        else:
+            if existing.strip():
+                merged = existing.rstrip() + "\n\n" + section + SECTION_END + "\n"
+            else:
+                header = (
+                    f"# {integration.instructions_file.split('/')[-1]}\n\n"
+                )
+                merged = header + section + SECTION_END + "\n"
+            action = "appended section"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(merged, encoding="utf-8")
+        rendered = results[integration.instructions_file] = action
+        results[integration.instructions_file] = (
+            f"{action} in {integration.instructions_file} ({key})"
+        )
+        results[integration.instructions_file] = (
+            f"{action} in {integration.instructions_file} ({key})"
+        )
+        _ = rendered
+    return results
+
+
+def write_managed_instructions(
+    project_root: Path, keys: list[str], repo_always: bool = False
+) -> list[str]:
+    """Write the managed seniordev workflow section into each agent's ambient
+    instructions file (CLAUDE.md, AGENTS.md, Copilot instructions, Cursor rules).
+
+    Merge policy: the file stays human-owned; seniordev replaces only the text
+    between its BEGIN/END markers. Human content above/below is untouched. If the
+    file does not exist, it is created with a small header plus the section.
+    Idempotent: re-running replaces the same block.
+    """
+    body = (TEMPLATES_DIR / "agent-instructions.md").read_text(encoding="utf-8")
+    section = f"{SECTION_BEGIN}\n\n{body}"
+    actions: list[str] = []
+    seen_files: set[str] = set()
+    for key in keys:
+        integration = integ.INTEGRATIONS[key]
+        instructions_file = integration.instructions_file
+        if not instructions_file or instructions_file in seen_files:
+            continue
+        # generic's AGENTS.md is only rendered when explicitly requested.
+        if key == REPO_INTEGRATION and not repo_always:
+            continue
+        seen_files.add(instructions_file)
+        target = project_root / instructions_file
+        existing = ""
+        if target.is_file():
+            existing = target.read_text(encoding="utf-8", errors="replace")
+        if SECTION_BEGIN in existing and SECTION_END in existing:
+            pre, rest = existing.split(SECTION_BEGIN, 1)
+            _, post = rest.split(SECTION_END, 1)
+            merged = pre + section + SECTION_END + post
+            action = "replaced section"
+        elif existing.strip():
+            merged = existing.rstrip() + "\n\n" + section + SECTION_END + "\n"
+            action = "appended section"
+        else:
+            header = f"# {instructions_file.rsplit('/', 1)[-1]}\n\n"
+            merged = (
+                integration.instructions_frontmatter + header + section
+                + SECTION_END + "\n"
+            )
+            action = "created"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(merged, encoding="utf-8")
+        actions.append(f"{action}: {instructions_file} ({key})")
+    return actions
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     # init takes an optional positional directory; -C is honored otherwise
     directory = getattr(args, "directory", None)
@@ -136,6 +235,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     agents = parse_agents(args.agent)
     made = write_workspace_scaffold(target)
     rendered = render_commands(target, agents)
+    instructions = write_managed_instructions(target, agents)
     config = {
         "tool": "seniordev",
         "version": __version__,
@@ -151,6 +251,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     for path in made:
         print(f"  + {path.relative_to(target)}")
     print(f"  rendered {len(rendered)} command files for: {', '.join(agents)}")
+    for item in instructions:
+        print(f"  {item}")
     print("Next:")
     print("  1. Edit .senior/principles.md and .senior/dossier.md to match reality")
     first_example_line = primary.example.splitlines()[0].strip()
@@ -177,6 +279,9 @@ def cmd_sync(args: argparse.Namespace) -> int:
     print(f"rendered {len(rendered)} command files:")
     for destination in rendered:
         print(f"  {destination.relative_to(project_root)}")
+    repo_always = any(key == REPO_INTEGRATION for key in agents)
+    for item in write_managed_instructions(project_root, agents, repo_always):
+        print(f"  {item}")
     return 0
 
 

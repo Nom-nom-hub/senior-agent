@@ -26,6 +26,12 @@ class Integration:
     invocation: str
     # Multi-line chained-stage usage example (first line = start of the pipeline).
     example: str
+    # File the agent reads ambient project context from; managed section is
+    # rendered here by init/sync so the agent knows the workflow without being
+    # handed a command. Empty for generic (commands-only).
+    instructions_file: str
+    # Optional frontmatter prepended for rule-file formats (e.g. Cursor .mdc).
+    instructions_frontmatter: str = ""
 
 
 INTEGRATIONS: dict[str, Integration] = {
@@ -39,6 +45,7 @@ INTEGRATIONS: dict[str, Integration] = {
             "$ARGUMENTS",
             "Open .senior/commands/senior-recon.md with your agent and follow it",
             "senior-recon.md <ask> -> senior-scope.md -> senior-decide.md -> ... -> senior-ship.md",
+            "AGENTS.md",
         ),
         Integration(
             "claude",
@@ -49,12 +56,12 @@ INTEGRATIONS: dict[str, Integration] = {
             "/senior-recon <your ask>",
             "\n".join(
                 [
-                    "/senior-recon Add retries to the webhook fan-out",
-                    "  /senior-scope            (evidence lands in .senior/work/<slug>/scope.md)",
+                    "/senior-recon Add retries to the webhook fan-out",                    "/senior-scope            (evidence lands in .senior/work/<slug>/scope.md)",
                     "  /senior-decide, /senior-design, /senior-execute, /senior-review",
                     "  /senior-verify, then /senior-ship when verification is approved",
                 ]
             ),
+            "CLAUDE.md",
         ),
         Integration(
             "cursor",
@@ -65,11 +72,12 @@ INTEGRATIONS: dict[str, Integration] = {
             "/senior-recon <your ask>",
             "\n".join(
                 [
-                    "/senior-recon Add caching headers to static responses",
-                    "  /senior-scope, /senior-decide, /senior-design, /senior-execute",
+                    "/senior-recon Add caching headers to static responses",                    "/senior-scope, /senior-decide, /senior-design, /senior-execute",
                     "  /senior-review, /senior-verify, /senior-ship",
                 ]
             ),
+            ".cursor/rules/seniordev.mdc",
+            "---\ndescription: seniordev senior workflow\nglobs:\nalwaysApply: true\n---\n",
         ),
         Integration(
             "codex",
@@ -80,11 +88,11 @@ INTEGRATIONS: dict[str, Integration] = {
             "/senior-recon <your ask>",
             "\n".join(
                 [
-                    "/senior-recon Fix the flaky cart-total rounding",
-                    "  /senior-scope -> /senior-decide -> /senior-design -> /senior-execute",
+                    "/senior-recon Fix the flaky cart-total rounding",                    "/senior-scope -> /senior-decide -> /senior-design -> /senior-execute",
                     "  /senior-review -> /senior-verify -> /senior-ship",
                 ]
             ),
+            "AGENTS.md",
         ),
         Integration(
             "copilot",
@@ -100,6 +108,7 @@ INTEGRATIONS: dict[str, Integration] = {
                     "  scope, decide, design, execute, review, verify, ship",
                 ]
             ),
+            ".github/copilot-instructions.md",
         ),
     )
 }
