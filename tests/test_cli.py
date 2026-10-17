@@ -11,11 +11,14 @@ REPO = Path(__file__).resolve().parent.parent
 
 
 def run(*argv, cwd):
+    # stdin=DEVNULL keeps the child's TTY state deterministic across environments
+    # (the gates runner refuses non-interactive runs without --yes by design).
     return subprocess.run(
         [sys.executable, "-m", "seniordev", *argv],
         cwd=str(cwd),
         capture_output=True,
         text=True,
+        stdin=subprocess.DEVNULL,
     )
 
 
@@ -71,6 +74,30 @@ class TestCli(unittest.TestCase):
         result = self._run("init", "--agent", "nonsense")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("unknown agent", result.stderr)
+
+    def test_run_yes_walks_fabricated_work_without_tty(self):
+        self._run("init", "--agent", "claude")
+        work_dir = self.proj / ".senior" / "work" / "w1"
+        work_dir.mkdir(parents=True)
+        (work_dir / "recon.md").write_text("- **Status**: complete\n", encoding="utf-8")
+        result = self._run("run", "--slug", "w1", "--yes")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("walked 'w1'", result.stdout)
+
+    def test_run_non_interactive_refuses_without_yes(self):
+        self._run("init", "--agent", "claude")
+        work_dir = self.proj / ".senior" / "work" / "w1"
+        work_dir.mkdir(parents=True)
+        (work_dir / "recon.md").write_text("- **Status**: complete\n", encoding="utf-8")
+        result = self._run("run", "--slug", "w1")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("--yes", result.stderr)
+
+    def test_agents_lists_examples(self):
+        result = self._run("agents")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("senior-recon", result.stdout)
+        self.assertIn("docs/guides/agents.md", result.stdout)
 
 
 if __name__ == "__main__":

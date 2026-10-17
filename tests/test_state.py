@@ -27,6 +27,41 @@ class Base(unittest.TestCase):
         work_dir.mkdir(parents=True, exist_ok=True)
         (work_dir / f"{name}.md").write_text(content, encoding="utf-8")
 
+    def write_assessment(self, slug, decision_or_body):
+        assess_dir = self.senior / "assessments" / slug
+        assess_dir.mkdir(parents=True, exist_ok=True)
+        (assess_dir / "assessment.md").write_text(
+            f"# Idea Assessment: {slug}\n\n{decision_or_body}\n", encoding="utf-8"
+        )
+
+
+class TestAssessments(Base):
+    def test_go_decision_parsed(self):
+        self.init_workspace()
+        self.write_assessment("idea-a", "- **Decision**: go")
+        item = state.gather(self.root)["assessments"][0]
+        self.assertEqual(item["decision"], "go")
+
+    def test_needs_clarification_parsed(self):
+        self.init_workspace()
+        self.write_assessment("idea-b", "- **Decision**: needs-clarification (auth)")
+        item = state.gather(self.root)["assessments"][0]
+        self.assertEqual(item["decision"], "needs-clarification")
+
+    def test_kill_parsed(self):
+        self.init_workspace()
+        self.write_assessment("idea-c", "- **Decision**: kill - no user demand")
+        item = state.gather(self.root)["assessments"][0]
+        self.assertEqual(item["decision"], "kill")
+
+    def test_status_text_lists_assessments_and_recon_handoff_for_go(self):
+        self.init_workspace()
+        self.write_assessment("idea-a", "- **Decision**: go")
+        text = state.status_text(state.gather(self.root))
+        self.assertIn("Ideas assessed:", text)
+        self.assertIn("idea-a: go", text)
+        self.assertIn("senior-recon slug=idea-a", text)
+
 
 class TestNotInitialized(Base):
     def test_reports_uninitialized(self):
@@ -130,6 +165,18 @@ class TestChecklists(Base):
         stats = state.checklist_stats(text)
         self.assertEqual(stats["total"], 3)
         self.assertEqual(stats["checked"], 2)
+        self.assertEqual(stats["open"], 1)
+
+    def test_backlog_counts_open_items_not_resolved_ones(self):
+        self.init_workspace()
+        (self.senior / "backlog.md").write_text(
+            "- [x] already handled idea\n"
+            "- [ ] parked idea one\n"
+            "- [ ] parked idea two\n",
+            encoding="utf-8",
+        )
+        gathered = state.gather(self.root)
+        self.assertEqual(gathered["backlog"]["items"], 2)
 
 
 if __name__ == "__main__":

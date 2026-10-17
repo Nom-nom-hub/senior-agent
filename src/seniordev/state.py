@@ -63,6 +63,7 @@ def checklist_stats(text: str) -> dict:
     return {
         "total": len(boxes),
         "checked": sum(1 for box in boxes if box.strip().lower() == "x"),
+        "open": sum(1 for box in boxes if box.strip().lower() != "x"),
     }
 
 
@@ -212,9 +213,11 @@ def gather(project_root: Path) -> dict:
         "exists": decisions_path.is_file(),
         "records": len(DECISION_RE.findall(decisions_text)),
     }
+    # Backlog counts OPEN items (unchecked) - it is a list of parked work, and a
+    # checked box means the idea has since been addressed.
     state["backlog"] = {
         "exists": backlog_path.is_file(),
-        "items": checklist_stats(read_text(backlog_path))["checked"],
+        "items": checklist_stats(read_text(backlog_path))["open"],
     }
 
     state["work"] = sorted(

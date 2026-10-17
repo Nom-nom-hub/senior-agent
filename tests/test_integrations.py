@@ -21,6 +21,24 @@ class TestRender(unittest.TestCase):
             integrations.command_file_name("senior-recon", claude), "senior-recon.md"
         )
 
+    def test_every_adapter_has_example_mentioning_two_or_more_stages(self):
+        self.maxDiff = None
+        for key, integration in integrations.INTEGRATIONS.items():
+            self.assertTrue(
+                integration.example.strip(), f"{key} has an empty example"
+            )
+            stages = sum(
+                1
+                for token in (
+                    "recon", "scope", "decide", "design", "execute",
+                    "review", "verify", "ship",
+                )
+                if token in integration.example
+            )
+            self.assertGreaterEqual(
+                stages, 2, f"{key} example should chain at least two stages"
+            )
+
     def test_identity_render_keeps_dollar_arguments(self):
         generic = integrations.INTEGRATIONS["generic"]
         source = "## Arguments\n\n```text\n$ARGUMENTS\n```"

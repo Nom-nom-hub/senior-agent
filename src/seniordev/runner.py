@@ -35,7 +35,15 @@ ANSWERS_YES = ("y", "yes")
 
 
 def is_interactive() -> bool:
-    return sys.stdin.isatty()
+    """True only when both stdin and stdout are a terminal.
+
+    Checking stdin alone is unreliable on Windows: CPython claims isatty() == True
+    for a DEVNULL-redirected stdin (verified in-session, 2026-10-17), which would let
+    a gates runner prompt with nobody watching. Requiring stdout too keeps CI and
+    captured-output runs deterministically non-interactive. Redirects that still
+    fake a TTY are handled at prompt time via EOFError-as-refusal.
+    """
+    return sys.stdin.isatty() and sys.stdout.isatty()
 
 
 def ask_gate(prompt: str) -> bool:
@@ -72,9 +80,10 @@ def command_hint(command: str, agent_key: str) -> str:
 
 
 def check_gates(next_stage: str, slug: str) -> bool:
-    """Return True if any applicable gate was approved. False = rejected/aborted."""
+    """Return True if no gate applies or the applicable gate was approved."""
     gate = next(
-        (before_stage, prompt) for before_stage, prompt in GATES if before_stage == next_stage
+        ((before_stage, prompt) for before_stage, prompt in GATES if before_stage == next_stage),
+        None,
     )
     if gate is None:
         return True

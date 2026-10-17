@@ -6,6 +6,9 @@ __pycache__/
 build/
 dist/
 
+# research clone (nested git repo, not part of this project)
+_research/
+
 # local demonstration scaffold
 sandbox/
 .senior/
