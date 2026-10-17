@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "seniordev"
+version = "0.1.0"
+description = "seniordev — agents that ship like senior devs. Scaffolds a .senior/ workspace and renders a senior workflow (recon → scope → decide → design → execute → review → verify → ship) into your coding agent's native commands."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "seniordev" }]
+keywords = ["ai", "agents", "workflow", "sdlc", "code-review"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.scripts]
+senior = "seniordev.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+seniordev = ["data/commands/*.md", "data/templates/*.md"]
